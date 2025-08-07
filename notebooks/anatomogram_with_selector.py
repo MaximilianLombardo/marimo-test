@@ -401,14 +401,17 @@ def _(mo):
 
 @app.cell
 def _(AnatomogramWidget, expression_data, gene_selector, mo, uberon_map):
+    # Use a variable to hold the output of the conditional logic
+    output = None
+    
     if gene_selector.value and len(gene_selector.value) > 0:
         # Use GitHub-hosted SVG files
         svg_base_url = "https://raw.githubusercontent.com/ebi-gene-expression-group/anatomogram/master/src/svg"
 
-        # Create the anatomogram widget with reactive binding
+        # Create the anatomogram widget WITH selected_gene
         anatomogram = AnatomogramWidget(
             expression_data=expression_data,
-            selected_gene=gene_selector.value[0],  # Get first (and only) selected gene
+            selected_gene=gene_selector.value[0],  # Pass initial selected gene
             sex="male",
             color_palette="viridis",
             scale_type="linear",
@@ -417,11 +420,14 @@ def _(AnatomogramWidget, expression_data, gene_selector, mo, uberon_map):
             svg_url=svg_base_url
         )
 
-        # Create and explicitly return the widget UI for display
-        return mo.ui.anywidget(anatomogram)
+        # Assign the widget UI to the output variable
+        output = mo.ui.anywidget(anatomogram)
     else:
-        # Return the markdown message if no gene is selected
-        return mo.md("*Select a gene to view the anatomogram*")
+        # Assign the markdown message to the output variable
+        output = mo.md("*Select a gene to view the anatomogram*")
+
+    # The last expression in the cell is implicitly displayed by Marimo
+    output
 
 
 if __name__ == "__main__":

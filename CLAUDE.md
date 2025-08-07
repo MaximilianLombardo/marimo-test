@@ -191,3 +191,163 @@ export default { render };
 - AnyWidget docs: https://anywidget.dev/
 - D3.js reference: https://d3js.org/
 - Project issues: GitHub repository
+
+## Marimo Development Learnings
+
+### Cell Output and Display
+
+**Key Principle**: Marimo cells display the last expression evaluated, NOT return values.
+
+#### ❌ Common Mistake: Using Return Statements
+```python
+@app.cell
+def _(mo):
+    if condition:
+        widget = mo.ui.slider()
+        return widget  # SyntaxError: 'return' outside function
+    else:
+        return mo.md("No widget")
+```
+
+#### ✅ Correct Approach: Use Last Expression
+```python
+@app.cell
+def _(mo):
+    if condition:
+        output = mo.ui.slider()
+    else:
+        output = mo.md("No widget")
+    
+    output  # Last expression is displayed
+```
+
+### Reactivity Patterns
+
+#### Pattern 1: Simple Reactive Updates
+When UI elements change, dependent cells automatically re-run:
+
+```python
+# Cell 1: Create selector
+@app.cell
+def _(mo):
+    gene_selector = mo.ui.multiselect(
+        options=['TP53', 'BRCA1', 'EGFR'],
+        value=['TP53'],
+        max_selections=1
+    )
+    gene_selector
+    return (gene_selector,)
+
+# Cell 2: Use selector value (re-runs when selection changes)
+@app.cell
+def _(gene_selector, data):
+    selected_gene = gene_selector.value[0] if gene_selector.value else None
+    if selected_gene:
+        display_data = data[selected_gene]
+        mo.md(f"Showing data for: {selected_gene}")
+    else:
+        mo.md("Select a gene")
+```
+
+#### Pattern 2: Widget Updates with AnyWidget
+For custom widgets, pass reactive values directly to the widget constructor:
+
+```python
+@app.cell
+def _(AnatomogramWidget, gene_selector, mo):
+    if gene_selector.value:
+        # Widget is recreated when gene_selector changes
+        widget = AnatomogramWidget(
+            selected_gene=gene_selector.value[0],  # Reactive value
+            expression_data=data
+        )
+        output = mo.ui.anywidget(widget)
+    else:
+        output = mo.md("Select a gene")
+    
+    output
+```
+
+### Common Pitfalls and Solutions
+
+#### 1. Conditional Display with Multiple Outputs
+**Problem**: Trying to display different things based on conditions
+
+**Solution**: Assign to a variable, then display:
+```python
+@app.cell
+def _(condition, mo):
+    # Determine what to display
+    if condition:
+        output = create_complex_widget()
+    else:
+        output = mo.md("Condition not met")
+    
+    # Display the output
+    output
+```
+
+#### 2. Empty Returns in Cells
+**Problem**: Using `return` without a value
+```python
+return  # SyntaxError in Marimo cells
+```
+
+**Solution**: Return needed values or omit return entirely:
+```python
+return (var1, var2)  # If other cells need these
+# OR just display without return
+widget_ui  # Display and end cell
+```
+
+#### 3. Widget Not Updating
+**Problem**: Widget doesn't update when inputs change
+
+**Solution**: Ensure the cell creating the widget depends on reactive elements:
+```python
+@app.cell
+def _(selector, AnatomogramWidget, mo):  # selector in function signature!
+    # Cell re-runs when selector changes
+    widget = AnatomogramWidget(data=selector.value)
+    mo.ui.anywidget(widget)
+```
+
+### Best Practices
+
+1. **Explicit Dependencies**: Always include UI elements in cell function signatures
+2. **Single Output**: Each cell should have one clear output (the last expression)
+3. **Conditional Logic**: Use variable assignment for conditional displays
+4. **State Management**: Let Marimo handle state through cell dependencies
+5. **Debugging**: Use `print()` statements to trace execution in Marimo logs
+
+### Example: Complete Reactive Pattern
+```python
+# Cell 1: UI Control
+@app.cell
+def _(mo):
+    control = mo.ui.slider(start=0, stop=100, value=50)
+    control
+    return (control,)
+
+# Cell 2: Dependent Visualization
+@app.cell
+def _(control, visualize_data):
+    # This cell re-runs whenever control.value changes
+    threshold = control.value
+    
+    if threshold > 25:
+        output = visualize_data(threshold)
+    else:
+        output = mo.md(f"Threshold too low: {threshold}")
+    
+    output  # Display the result
+```
+
+### Troubleshooting Checklist
+
+- [ ] Check for `return` statements in cells (remove them)
+- [ ] Ensure reactive elements are in cell dependencies
+- [ ] Use variable assignment for conditional outputs
+- [ ] Verify last expression is what you want to display
+- [ ] Check browser console for JavaScript errors (for widgets)
+- [ ] Use `print()` to debug execution flow
